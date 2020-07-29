@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var collapsed = get_query_parameter('collapsed') || 'Passed';
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (extras.classList.contains("collapsed")) {
+            expandcollapse.classList.add("expander")
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function get_query_parameter(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    sort_column(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+
+        if (key_a == key_b) return 0;
+
+        if (reversed) {
+            return (key_a < key_b ? 1 : -1);
+        } else {
+            return (key_a > key_b ? 1 : -1);
+        }
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <h1>report3.html</h1>
+    <p>Report generated on 29-Jul-2020 at 08:31:09 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v2.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>C:\Program Files\Java\jdk1.8.0_181\bin</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.9.0", "pytest": "5.4.3"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.18362-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"celery": "4.4.6", "html": "2.1.1", "metadata": "1.10.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.6.5</td></tr></table>
+    <h2>Summary</h2>
+    <p>42 tests ran in 98.66 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">42 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Abnormal/test_Abnormal_post.py::test_verification_code_post[3534z.com]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>3534z.com
+202
+{
+    &quot;id&quot;: &quot;70636597-0012-4ded-b1a6-b19be68b8b80&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;70636597-0012-4ded-b1a6-b19be68b8b80&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Abnormal/test_Abnormal_post.py::test_verification_code_post[www-32555.com]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>www-32555.com
+202
+{
+    &quot;id&quot;: &quot;6ce2203c-dfdf-4115-b1cd-eff2eadf2fa2&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;6ce2203c-dfdf-4115-b1cd-eff2eadf2fa2&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Abnormal/test_Abnormal_post.py::test_verification_code_post[www.44488.com]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>www.44488.com
+202
+{
+    &quot;id&quot;: &quot;ce33a230-77e1-4342-a7fb-a141469bdecf&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;ce33a230-77e1-4342-a7fb-a141469bdecf&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">CDN/test_cdn_post.py::test_cdn_post[https://www.baidu.com/]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>https://www.baidu.com/
+202
+{
+    &quot;id&quot;: &quot;22c9fdf7-e67e-42b4-9ef1-03a27469e500&quot;,
+    &quot;status&quot;: &quot;PENDING&quot;,
+    &quot;result&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;22c9fdf7-e67e-42b4-9ef1-03a27469e500&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Language/test_language_post_pytest.py::test_language_post[https://www.gks.ru/]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>202
+{
+    &quot;id&quot;: &quot;6b5e2936-fc64-4bc8-bc0a-154d024d8a20&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;6b5e2936-fc64-4bc8-bc0a-154d024d8a20&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Mirror/test_mirror_post.py::test_mirror_post[http://mirrors.163.com/]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>202
+{
+    &quot;id&quot;: &quot;93f559cc-647d-424a-9d98-bead894b1d12&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;93f559cc-647d-424a-9d98-bead894b1d12&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Pro_classifier_api/test_pro_classifier_api_post.py::test_pro_classifier_api_post[qz668.com]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>202
+{
+    &quot;id&quot;: &quot;d6a08495-14e6-4c9d-a801-be4b2dee1ba6&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;d6a08495-14e6-4c9d-a801-be4b2dee1ba6&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Redirect/test_redirect_post.py::test_redirect_post[http://3534z.com]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>http://3534z.com
+202
+{
+    &quot;id&quot;: &quot;4e3c46e7-a791-4e77-ad39-a1609e22c6c1&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;4e3c46e7-a791-4e77-ad39-a1609e22c6c1&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Redirect/test_redirect_post.py::test_redirect_post[http://www-32555.com]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://www-32555.com
+202
+{
+    &quot;id&quot;: &quot;fdfb65de-9aa4-4425-89c8-68b4cc555672&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;fdfb65de-9aa4-4425-89c8-68b4cc555672&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Screenshot/test_screenshot_post.py::test_Screenshot_post[http://www.yinfans.me/]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>202
+{
+    &quot;id&quot;: &quot;2418a3e7-e1d8-4cbb-a0d5-eff69ab4b660&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;2418a3e7-e1d8-4cbb-a0d5-eff69ab4b660&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Short_link/test_short_link.py::test_shot_link_post[http://mrw.so/]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>http://mrw.so/
+202
+{
+    &quot;id&quot;: &quot;48035711-b380-4b93-b30f-5871bd90770e&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;48035711-b380-4b93-b30f-5871bd90770e&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Short_link/test_short_link.py::test_shot_link_post[http://goo.gs/]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://goo.gs/
+202
+{
+    &quot;id&quot;: &quot;846a2025-3371-4051-bf02-c1cb72bbc934&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;846a2025-3371-4051-bf02-c1cb72bbc934&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Vpn/test_vpn_post.py::test_vpn_post[https://www.xjckrot.xyz/zh-cn]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>https://www.xjckrot.xyz/zh-cn
+202
+{
+    &quot;id&quot;: &quot;8412335e-b594-48a1-97f1-7d59f6edabf7&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;8412335e-b594-48a1-97f1-7d59f6edabf7&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">download/test_download_post.py::test_language_post[http://www.yinfans.me/movie/20332]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>202
+{
+    &quot;id&quot;: &quot;7c4fdae7-34d7-4249-9800-dcb5ff5da2c1&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;7c4fdae7-34d7-4249-9800-dcb5ff5da2c1&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">portscan/test_portscan.py::test_portscan_post[114.55.74.110]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>114.55.74.110
+202
+{
+    &quot;id&quot;: &quot;7b0c531a-be6b-462f-a9e8-20525af4f9e0&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;7b0c531a-be6b-462f-a9e8-20525af4f9e0&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">portscan/test_portscan.py::test_portscan_post[39.106.194.111]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>39.106.194.111
+202
+{
+    &quot;id&quot;: &quot;f54200ba-07f7-4a7f-903a-953fb3e11ecb&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;f54200ba-07f7-4a7f-903a-953fb3e11ecb&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_10_rules_vpn_put.py::test_10_rules_vpn_put[{&quot;id&quot;: 2,&quot;update_word&quot;: &quot;关键词57&quot;}]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>400
+{
+    &quot;operate&quot;: &quot;update&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 2,
+        &quot;update_word&quot;: &quot;\u5173\u952e\u8bcd57&quot;
+    },
+    &quot;error&quot;: &quot;10007&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_11_rules_vpn_post.py::test_11_rules_vpn_post[关键词]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>400
+{
+    &quot;operate&quot;: &quot;insert&quot;,
+    &quot;detail_content&quot;: &quot;\u5173\u952e\u8bcd&quot;,
+    &quot;error&quot;: &quot;10005&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_12_rules_delete.py::test_12_rules_delete[cdn]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;delete&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 96
+    },
+    &quot;data&quot;: &quot;\&quot;succeeded\&quot;&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_12_rules_delete.py::test_12_rules_delete[vpn]</td>
+          <td class="col-duration">2.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>400
+{
+    &quot;operate&quot;: &quot;delete&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 96
+    },
+    &quot;error&quot;: &quot;10008&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_12_rules_delete.py::test_12_rules_delete[download]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>400
+{
+    &quot;operate&quot;: &quot;delete&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 96
+    },
+    &quot;error&quot;: &quot;10008&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_12_rules_delete.py::test_12_rules_delete[drug]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;delete&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 96
+    },
+    &quot;data&quot;: &quot;\&quot;succeeded\&quot;&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_12_rules_delete.py::test_12_rules_delete[mirror]</td>
+          <td class="col-duration">2.19</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>400
+{
+    &quot;operate&quot;: &quot;delete&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 96
+    },
+    &quot;error&quot;: &quot;10008&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_13_rules_get.py::test_13_rules_get[cdn]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;showdatabase&quot;,
+    &quot;detail_content&quot;: &quot;cdn&quot;,
+    &quot;data&quot;: &quot;{\&quot;0\&quot;: {\&quot;.cdn.dnsv1.com\&quot;: \&quot;\u817e\u8baf\u4e91\&quot;}, \&quot;1\&quot;: {\&quot;.cdntip.com\&quot;: \&quot;\u817e\u8baf\u4e91\&quot;}, \&quot;2\&quot;: {\&quot;.qcloudcjgj.com\&quot;: \&quot;\u817e\u8baf\u4e91\&quot;}, \&quot;3\&quot;: {\&quot;.yunjiasu-cdn\&quot;: \&quot;\u767e\u5ea6\u4e91\u52a0\u901f\&quot;}, \&quot;4\&quot;: {\&quot;.jomodns.com\&quot;: \&quot;\u767e\u5ea6\u4e91\u52a0\u901f\&quot;}, \&quot;5\&quot;: {\&quot;.alikunlun.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;6\&quot;: {\&quot;.aliyuncs\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;7\&quot;: {\&quot;.kunlunar.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;8\&quot;: {\&quot;.kunlungr.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;9\&quot;: {\&quot;.kunlunca.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;10\&quot;: {\&quot;.kunlunhuf.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;11\&quot;: {\&quot;.aliyun-inc\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;12\&quot;: {\&quot;.aliyun.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;13\&quot;: {\&quot;.cdngslb.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;14\&quot;: {\&quot;.kunluncan.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;15\&quot;: {\&quot;spool.grid.sinaedge.com\&quot;: \&quot;\u65b0\u6d6a\u4e91\&quot;}, \&quot;16\&quot;: {\&quot;t0.applinzi.com\&quot;: \&quot;\u65b0\u6d6a\u4e91\&quot;}, \&quot;17\&quot;: {\&quot;pop3.sina.com.cn\&quot;: \&quot;\u65b0\u6d6a\u4e91\&quot;}, \&quot;18\&quot;: {\&quot;imap.sina.com.cn\&quot;: \&quot;\u65b0\u6d6a\u4e91\&quot;}, \&quot;19\&quot;: {\&quot;cms.sina.cn\&quot;: \&quot;\u65b0\u6d6a\u4e91\&quot;}, \&quot;20\&quot;: {\&quot;.jiashule.com\&quot;: \&quot;\u52a0\u901f\u4e50\&quot;}, \&quot;21\&quot;: {\&quot;.lxcdn.com\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;22\&quot;: {\&quot;.lxdns.com\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;23\&quot;: {\&quot;.lxsvc.cn\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;24\&quot;: {\&quot;ccgslb.com.cn\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;25\&quot;: {\&quot;.chinacache.net\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;26\&quot;: {\&quot;cncssr.chinacache.net\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;27\&quot;: {\&quot;.ccgslb.net\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;28\&quot;: {\&quot;.wscdns.com\&quot;: \&quot;\u7f51\u5bbf\&quot;}, \&quot;29\&quot;: {\&quot;.cdngtm.com\&quot;: \&quot;\u7f51\u5bbf\&quot;}, \&quot;30\&quot;: {\&quot;.cdn20.com\&quot;: \&quot;\u7f51\u5bbf\&quot;}, \&quot;31\&quot;: {\&quot;akamai-staging.net\&quot;: \&quot;Akamai\&quot;}, \&quot;32\&quot;: {\&quot;.akamaized.net\&quot;: \&quot;Akamai\&quot;}, \&quot;33\&quot;: {\&quot;.akamai.net\&quot;: \&quot;Akamai\&quot;}, \&quot;34\&quot;: {\&quot;.akamaiedge.net\&quot;: \&quot;Akamai\&quot;}, \&quot;35\&quot;: {\&quot;.akadns.net\&quot;: \&quot;Akamai\&quot;}, \&quot;36\&quot;: {\&quot;.cloudfront.net\&quot;: \&quot;Amazon Cloudfront\&quot;}, \&quot;37\&quot;: {\&quot;.amazonaws.com\&quot;: \&quot;Amazon Cloudfront\&quot;}, \&quot;38\&quot;: {\&quot;.fastcdn.com\&quot;: \&quot;\u5e1d\u8054\&quot;}, \&quot;39\&quot;: {\&quot;.flxdns.com\&quot;: \&quot;\u5e1d\u8054\&quot;}, \&quot;40\&quot;: {\&quot;mailhz.qiye.163.com\&quot;: \&quot;\u7f51\u6613\u4e91\&quot;}, \&quot;41\&quot;: {\&quot;qiye.163.com\&quot;: \&quot;\u7f51\u6613\u4e91\&quot;}, \&quot;42\&quot;: {\&quot;.netease.com\&quot;: \&quot;\u7f51\u6613\u4e91\&quot;}, \&quot;43\&quot;: {\&quot;.188.com\&quot;: \&quot;\u7f51\u6613\u4e91\&quot;}, \&quot;44\&quot;: {\&quot;.cdncenter.cn\&quot;: \&quot;\u7f8e\u6a59\&quot;}, \&quot;45\&quot;: {\&quot;.cndns5.com\&quot;: \&quot;\u7f8e\u6a59\&quot;}, \&quot;46\&quot;: {\&quot;.800cdn.com\&quot;: \&quot;\u897f\u90e8\u6570\u7801cdn\&quot;}, \&quot;47\&quot;: {\&quot;.vhostgo.com\&quot;: \&quot;\u897f\u90e8\u6570\u7801cdn\&quot;}, \&quot;48\&quot;: {\&quot;.gotoip4.com\&quot;: \&quot;\u897f\u90e8\u6570\u7801cdn\&quot;}, \&quot;49\&quot;: {\&quot;.abc188.com\&quot;: \&quot;\u897f\u90e8\u6570\u7801cdn\&quot;}, \&quot;50\&quot;: {\&quot;.trpcdn.net\&quot;: \&quot;\u767d\u4e91\u5c71\u79d1\u6280\&quot;}, \&quot;51\&quot;: {\&quot;.bsgslb.cn\&quot;: \&quot;\u767d\u4e91\u5c71\u79d1\u6280\&quot;}, \&quot;52\&quot;: {\&quot;.aicdn.com\&quot;: \&quot;\u53c8\u62cd\u4e91\&quot;}, \&quot;53\&quot;: {\&quot;.qhcdn.com\&quot;: \&quot;360\u4e91\u52a0\u901f\&quot;}, \&quot;54\&quot;: {\&quot;.so.com\&quot;: \&quot;360\u4e91\u52a0\u901f\&quot;}, \&quot;55\&quot;: {\&quot;.360cloudwaf.com\&quot;: \&quot;360\u4e91\u52a0\u901f\&quot;}, \&quot;56\&quot;: {\&quot;.yundundns.com\&quot;: \&quot;\u4e0a\u6d77\u4e91\u76fe\&quot;}, \&quot;57\&quot;: {\&quot;.hwwsdns.cn\&quot;: \&quot;\u4e0a\u6d77\u4e91\u76fe\&quot;}, \&quot;58\&quot;: {\&quot;.cname.jsd.cc\&quot;: \&quot;\u4e0a\u6d77\u4e91\u76fe\&quot;}, \&quot;59\&quot;: {\&quot;.powercdn.cn\&quot;: \&quot;\u52a8\u529b\u5728\u7ebf\&quot;}, \&quot;60\&quot;: {\&quot;.a.aocde.com\&quot;: \&quot;\u5317\u4eac\u521b\u4e16\u4e91\&quot;}, \&quot;61\&quot;: {\&quot;.b.aocde.com\&quot;: \&quot;\u5317\u4eac\u521b\u4e16\u4e91\&quot;}, \&quot;62\&quot;: {\&quot;.ksyuncdn.com\&quot;: \&quot;\u91d1\u5c71\u4e91\&quot;}, \&quot;63\&quot;: {\&quot;.ctxcdn.cn\&quot;: \&quot;\u4e2d\u56fd\u7535\u4fe1\&quot;}, \&quot;64\&quot;: {\&quot;.qiniudns.com\&quot;: \&quot;\u4e0a\u6d77\u4e03\u725b\&quot;}, \&quot;65\&quot;: {\&quot;.jdcdn.com\&quot;: \&quot;\u4eac\u4e1c\u4e91\&quot;}, \&quot;66\&quot;: {\&quot;.jcloud-cdn.com\&quot;: \&quot;\u4eac\u4e1c\u4e91\&quot;}, \&quot;67\&quot;: {\&quot;.cdnhwc2.com\&quot;: \&quot;\u534e\u4e3a\u4e91\&quot;}, \&quot;68\&quot;: {\&quot;.cloudfence.cn\&quot;: \&quot;\u84dd\u76fe\&quot;}, \&quot;69\&quot;: {\&quot;.azioncdn.net\&quot;: \&quot;Azion\&quot;}, \&quot;70\&quot;: {\&quot;.cachefly.net\&quot;: \&quot;Cachefly\&quot;}, \&quot;71\&quot;: {\&quot;.cdn77.net\&quot;: \&quot;CDN77\&quot;}, \&quot;72\&quot;: {\&quot;.cdn77.org\&quot;: \&quot;CDN77\&quot;}, \&quot;73\&quot;: {\&quot;cdnetworks.com.gccdn.net\&quot;: \&quot;CDNetworks\&quot;}, \&quot;74\&quot;: {\&quot;.cdnify.io\&quot;: \&quot;CDNify\&quot;}, \&quot;75\&quot;: {\&quot;.cdnsun.net\&quot;: \&quot;CDNsun\&quot;}, \&quot;76\&quot;: {\&quot;.cdnvideo.ru\&quot;: \&quot;CDNvideo\&quot;}, \&quot;77\&quot;: {\&quot;.wscloudcdn.com\&quot;: \&quot;ChinaNetCenter\&quot;}, \&quot;78\&quot;: {\&quot;cdn.cloudflare.net\&quot;: \&quot;CloudFlare\&quot;}, \&quot;79\&quot;: {\&quot;.edgecastcdn.net\&quot;: \&quot;EdgeCast\&quot;}, \&quot;80\&quot;: {\&quot;.fastly.net\&quot;: \&quot;Fastly\&quot;}, \&quot;81\&quot;: {\&quot;.hwcdn.net\&quot;: \&quot;Highwinds\&quot;}, \&quot;82\&quot;: {\&quot;.incapdns.net\&quot;: \&quot;Incapsula\&quot;}, \&quot;83\&quot;: {\&quot;.internapcdn.net\&quot;: \&quot;Internap\&quot;}, \&quot;84\&quot;: {\&quot;.kxcdn.com\&quot;: \&quot;KeyCDN\&quot;}, \&quot;85\&quot;: {\&quot;.awsdns\&quot;: \&quot;KeyCDN\&quot;}, \&quot;86\&quot;: {\&quot;.lswcdn.net\&quot;: \&quot;Leaseweb\&quot;}, \&quot;87\&quot;: {\&quot;.fpbns.net\&quot;: \&quot;Level3\&quot;}, \&quot;88\&quot;: {\&quot;.footprint.net\&quot;: \&quot;Level3\&quot;}, \&quot;89\&quot;: {\&quot;vo.llnwd.net\&quot;: \&quot;Limelight\&quot;}, \&quot;90\&quot;: {\&quot;netdna-cdn.com\&quot;: \&quot;MaxCDN\&quot;}, \&quot;91\&quot;: {\&quot;mwcloudcdn.com\&quot;: \&quot;QUANTIL\&quot;}, \&quot;92\&quot;: {\&quot;.speedcdns.com\&quot;: \&quot;QUANTIL\&quot;}, \&quot;93\&quot;: {\&quot;.azureedge.net\&quot;: \&quot;Azure CDN\&quot;}, \&quot;94\&quot;: {\&quot;.anankecdn.com.br\&quot;: \&quot;Ananke\&quot;}, \&quot;95\&quot;: {\&quot;.presscdn.com\&quot;: \&quot;Presscdn\&quot;}}&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_13_rules_get.py::test_13_rules_get[vpn]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;showdatabase&quot;,
+    &quot;detail_content&quot;: &quot;vpn&quot;,
+    &quot;data&quot;: &quot;{\&quot;0\&quot;: \&quot;\u81ea\u7531\&quot;, \&quot;1\&quot;: \&quot;\u7f51\u7edc\&quot;, \&quot;2\&quot;: \&quot;\u5173\u952e\u8bcd57\&quot;, \&quot;3\&quot;: \&quot;\u5168\u7403\&quot;, \&quot;4\&quot;: \&quot;\u670d\u52a1\u5668\&quot;, \&quot;5\&quot;: \&quot;\u9000\u6b3e\&quot;, \&quot;6\&quot;: \&quot;\u5173\u952e\u8bcd\&quot;, \&quot;7\&quot;: \&quot;\u5173\u952e\u8bcd77\&quot;}&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_13_rules_get.py::test_13_rules_get[download]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;showdatabase&quot;,
+    &quot;detail_content&quot;: &quot;download&quot;,
+    &quot;data&quot;: &quot;{\&quot;0\&quot;: \&quot;mpg\&quot;, \&quot;1\&quot;: \&quot;3gp\&quot;, \&quot;2\&quot;: \&quot;vob\&quot;, \&quot;3\&quot;: \&quot;rmvb\&quot;, \&quot;4\&quot;: \&quot;mov\&quot;, \&quot;5\&quot;: \&quot;words\&quot;, \&quot;6\&quot;: \&quot;avi\&quot;, \&quot;7\&quot;: \&quot;wmv\&quot;, \&quot;8\&quot;: \&quot;mp4\&quot;, \&quot;9\&quot;: \&quot;mp3\&quot;, \&quot;10\&quot;: \&quot;mkv\&quot;, \&quot;11\&quot;: \&quot;zip\&quot;, \&quot;12\&quot;: \&quot;7z\&quot;, \&quot;13\&quot;: \&quot;tar\&quot;, \&quot;14\&quot;: \&quot;\u5173\u952e\u8bcd\&quot;}&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_13_rules_get.py::test_13_rules_get[drug]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;showdatabase&quot;,
+    &quot;detail_content&quot;: &quot;drug&quot;,
+    &quot;data&quot;: &quot;{\&quot;0\&quot;: {\&quot;\u7f05\u51b0\&quot;: 5}, \&quot;1\&quot;: {\&quot;\u957f\u6cbb\u7b4b\&quot;: 5}, \&quot;2\&quot;: {\&quot;\u96cc\u5316\u79cd\u5b50\&quot;: 5}, \&quot;3\&quot;: {\&quot;\u55e8\u64cd\&quot;: 5}, \&quot;4\&quot;: {\&quot;\u98de\u53f6\u5b50\&quot;: 5}, \&quot;5\&quot;: {\&quot;\u7f05\u8d27\&quot;: 5}, \&quot;6\&quot;: {\&quot;\u55e8\u51b0\&quot;: 5}, \&quot;7\&quot;: {\&quot;\u4eba\u4f53\u5e26\u8d27\&quot;: 5}, \&quot;8\&quot;: {\&quot;\u7f9f\u4e9a\u80fa\&quot;: 5}, \&quot;9\&quot;: {\&quot;\u82ef\u57fa\u4e19\u916e\&quot;: 5}, \&quot;10\&quot;: {\&quot;\u5316\u5408\u8089\&quot;: 5}, \&quot;11\&quot;: {\&quot;\u505a\u80fa\&quot;: 5}, \&quot;12\&quot;: {\&quot;\u7f05\u679c\&quot;: 5}, \&quot;13\&quot;: {\&quot;\u7532\u5361\u897f\u916e\&quot;: 5}, \&quot;14\&quot;: {\&quot;\u90bb\u916e\&quot;: 5}, \&quot;15\&quot;: {\&quot;\u9ebb\u9ec4\u7d20\&quot;: 5}, \&quot;16\&quot;: {\&quot;\u7ea6\u55e8\&quot;: 5}, \&quot;17\&quot;: {\&quot;\u6eb4\u4ee3\&quot;: 5}, \&quot;18\&quot;: {\&quot;\u6c2f\u80fa\u916e\&quot;: 5}, \&quot;19\&quot;: {\&quot;\u82ef\u4e19\u80fa\&quot;: 5}, \&quot;20\&quot;: {\&quot;\u6709\u80fa\&quot;: 5}, \&quot;21\&quot;: {\&quot;\u6eb4\u7d20\&quot;: 5}, \&quot;22\&quot;: {\&quot;\u82ef\u4e19\u916e\&quot;: 5}, \&quot;23\&quot;: {\&quot;\u6c42\u8089\&quot;: 5}, \&quot;24\&quot;: {\&quot;\u6c42\u7b4b\&quot;: 5}, \&quot;25\&quot;: {\&quot;\u5ddd\u8d27\&quot;: 5}, \&quot;26\&quot;: {\&quot;\u51fa\u7b4b\&quot;: 5}, \&quot;27\&quot;: {\&quot;\u5ddd\u8089\&quot;: 5}, \&quot;28\&quot;: {\&quot;\u5eb7\u6cf0\u514b\&quot;: 5}, \&quot;29\&quot;: {\&quot;\u8d70\u677f\&quot;: 5}, \&quot;30\&quot;: {\&quot;\u690d\u7269\u8089\&quot;: 5}, \&quot;31\&quot;: {\&quot;\u51fa\u8089\&quot;: 5}, \&quot;32\&quot;: {\&quot;\u6536\u80fa\&quot;: 5}, \&quot;33\&quot;: {\&quot;\u5316\u5408\u7d20\&quot;: 5}, \&quot;34\&quot;: {\&quot;\u55e80\&quot;: 2}, \&quot;35\&quot;: {\&quot;\u55e81\&quot;: 2}, \&quot;36\&quot;: {\&quot;\u8d70\u4e00\u677f\&quot;: 2}, \&quot;37\&quot;: {\&quot;\u771f\u5546\&quot;: 2}, \&quot;38\&quot;: {\&quot;\u4e59\u9178\u4e59\u916f\&quot;: 2}, \&quot;39\&quot;: {\&quot;\u80fa\u5316\&quot;: 2}, \&quot;40\&quot;: {\&quot;\u6253k\&quot;: 2}, \&quot;41\&quot;: {\&quot;1766\&quot;: 2}, \&quot;42\&quot;: {\&quot;\u6599\u5934\&quot;: 2}, \&quot;43\&quot;: {\&quot;\u68c0\u67e5\u7ad9\&quot;: 2}, \&quot;44\&quot;: {\&quot;\u540e\u6b3e\&quot;: 2}, \&quot;45\&quot;: {\&quot;\u540e\u8d27\&quot;: 2}, \&quot;46\&quot;: {\&quot;\u627e\u6599\u5934\&quot;: 2}, \&quot;47\&quot;: {\&quot;\u533b\u836f\u4e2d\u95f4\u4f53\&quot;: 2}, \&quot;48\&quot;: {\&quot;\u82ef\u4e59\u8148\&quot;: 2}, \&quot;49\&quot;: {\&quot;\u4e00\u4e2a\u80fa\&quot;: 2}, \&quot;50\&quot;: {\&quot;\u90ae\u7968\&quot;: 1}, \&quot;51\&quot;: {\&quot;\u81ed\u9f2c\&quot;: 1}, \&quot;52\&quot;: {\&quot;\u53f6\u5b50\&quot;: 1}, \&quot;53\&quot;: {\&quot;\u55d1\u836f\&quot;: 1}, \&quot;54\&quot;: {\&quot;\u9762\u4ea4\&quot;: 1}, \&quot;55\&quot;: {\&quot;\u71c3\u6599\&quot;: 1}, \&quot;56\&quot;: {\&quot;\u7ed3\u6676\&quot;: 1}, \&quot;57\&quot;: {\&quot;\u51fa\u8349\&quot;: 1}, \&quot;58\&quot;: {\&quot;\u79c1\u804a\&quot;: 1}, \&quot;59\&quot;: {\&quot;\u9053\u53cb\&quot;: 1}, \&quot;60\&quot;: {\&quot;\u6c34\u57f9\&quot;: 1}, \&quot;61\&quot;: {\&quot;\u55e8\u7247\&quot;: 1}, \&quot;62\&quot;: {\&quot;\u8f85\u6599\&quot;: 1}, \&quot;63\&quot;: {\&quot;\u53ef\u96f6\&quot;: 1}, \&quot;64\&quot;: {\&quot;\u53ef\u6279\&quot;: 1}, \&quot;65\&quot;: {\&quot;\u5927\u8089\&quot;: 1}, \&quot;66\&quot;: {\&quot;\u4e0a\u5bb6\&quot;: 1}, \&quot;67\&quot;: {\&quot;\u51fa\u5dee\&quot;: 1}, \&quot;68\&quot;: {\&quot;\u8fdb\u53e3\&quot;: 1}, \&quot;69\&quot;: {\&quot;\u4e0b\u5bb6\&quot;: 1}, \&quot;70\&quot;: {\&quot;\u56fd\u4ea7\&quot;: 1}, \&quot;71\&quot;: {\&quot;\u8bbe\u5907\&quot;: 1}, \&quot;72\&quot;: {\&quot;\u6280\u672f\&quot;: 1}, \&quot;73\&quot;: {\&quot;\u9ad8\u98de\&quot;: 1}, \&quot;74\&quot;: {\&quot;\u5148\u8d27\&quot;: 1}, \&quot;75\&quot;: {\&quot;\u5ba4\u5185\&quot;: 1}, \&quot;76\&quot;: {\&quot;\u98de\u884c\&quot;: 1}, \&quot;77\&quot;: {\&quot;\u98de\u884c\u5458\&quot;: 1}, \&quot;78\&quot;: {\&quot;\u5148\u6b3e\&quot;: 1}, \&quot;79\&quot;: {\&quot;\u5760\u673a\&quot;: 1}, \&quot;80\&quot;: {\&quot;\u6563\u8d27\&quot;: 1}, \&quot;81\&quot;: {\&quot;\u9a97\u5b50\u52ff\u6270\&quot;: 1}, \&quot;82\&quot;: {\&quot;\u57cb\u96f7\&quot;: 1}, \&quot;83\&quot;: {\&quot;\u6c42\u5927\u6599\&quot;: 1}, \&quot;84\&quot;: {\&quot;\u96f6\u6279\&quot;: 1}, \&quot;85\&quot;: {\&quot;\u8425\u517b\u6db2\&quot;: 1}, \&quot;86\&quot;: {\&quot;\u5ba4\u5916\&quot;: 1}, \&quot;87\&quot;: {\&quot;\u51fa\u7387\&quot;: 1}, \&quot;88\&quot;: {\&quot;\u7b28\u9e21\&quot;: 1}, \&quot;89\&quot;: {\&quot;\u5047\u51b0\&quot;: 1}, \&quot;90\&quot;: {\&quot;\u627e\u5927\u6599\&quot;: 1}, \&quot;91\&quot;: {\&quot;\u5c94\u9053\&quot;: 1}, \&quot;92\&quot;: {\&quot;\u6536\u7d20\&quot;: 1}, \&quot;93\&quot;: {\&quot;\u519c\u6279\&quot;: 1}, \&quot;94\&quot;: {\&quot;\u519c\u51fa\&quot;: 1}, \&quot;95\&quot;: {\&quot;\u83e0\u841d\u5feb\u8f66\&quot;: 1}}&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_13_rules_get.py::test_13_rules_get[mirror]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;showdatabase&quot;,
+    &quot;detail_content&quot;: &quot;mirror&quot;,
+    &quot;data&quot;: &quot;[[0, \&quot;\u767b\u5f55 - \u652f\u4ed8\u5b9d\&quot;, \&quot;https__auth.alipay.com_login_index.htm\&quot;, \&quot;test0\&quot;], [1, \&quot;title_failed_15959415230314352\&quot;, \&quot;https__jr.jd.com_\&quot;, \&quot;\u4e2d\u56fd\u5de5\u5546\u94f6\u884c\&quot;], [2, \&quot;title_failed_15947107843199489\&quot;, \&quot;https__ogate.org \&quot;, \&quot;test2\&quot;], [3, \&quot;\u652f\u4ed8\u5b9d \u77e5\u6258\u4ed8\uff01\&quot;, \&quot;https__www.alipay.com_\&quot;, \&quot;test3\&quot;], [4, \&quot;title_failed_15947108274950478\&quot;, \&quot;https__www.bannedbook.org \&quot;, \&quot;test4\&quot;], [5, \&quot;\u82b1\u65d7\u94f6\u884c(CitiBank)\u4e2d\u56fd\u5b98\u7f51-\u4fe1\u7528\u5361-\u7406\u8d22-\u5b58\u6b3e-\u8d37\u6b3e-\u4fdd\u9669\&quot;, \&quot;https__www.citibank.com.cn_sim_index.htm \&quot;, \&quot;test5\&quot;], [6, \&quot;CSDN - \u4e13\u4e1a\u5f00\u53d1\u8005\u793e\u533a\&quot;, \&quot;https__www.csdn.net \&quot;, \&quot;test6\&quot;], [7, \&quot;title_failed_15947108894357220\&quot;, \&quot;https__www.epochtimes.com \&quot;, \&quot;test7\&quot;], [8, \&quot;\u4e2d\u534e\u4eba\u6c11\u5171\u548c\u56fd\u5916\u4ea4\u90e8\&quot;, \&quot;https__www.fmprc.gov.cn_web_\&quot;, \&quot;test8\&quot;], [9, \&quot;\u4eac\u4e1c(JD.COM)-\u6b63\u54c1\u4f4e\u4ef7\u3001\u54c1\u8d28\u4fdd\u969c\u3001\u914d\u9001\u53ca\u65f6\u3001\u8f7b\u677e\u8d2d\u7269\uff01\&quot;, \&quot;https__www.jd.com_\&quot;, \&quot;test9\&quot;], [10, \&quot;\u4e2d\u534e\u4eba\u6c11\u5171\u548c\u56fd\u516c\u5b89\u90e8\&quot;, \&quot;https__www.mps.gov.cn \&quot;, \&quot;test10\&quot;], [11, \&quot;title_failed_15947109943264919\&quot;, \&quot;https__www.ntdtv.com \&quot;, \&quot;test11\&quot;], [12, \&quot;\u62fc\u591a\u591a \u65b0\u7535\u5546\u5f00\u521b\u8005\&quot;, \&quot;https__www.pinduoduo.com_\&quot;, \&quot;test12\&quot;], [13, \&quot;\u817e\u8baf\u9996\u9875\&quot;, \&quot;https__www.qq.com_\&quot;, \&quot;test13\&quot;], [14, \&quot;title_failed_15947110494312542\&quot;, \&quot;https__www.rfa.org \&quot;, \&quot;test14\&quot;], [15, \&quot;\u6e23\u6253\u94f6\u884c(\u4e2d\u56fd)\u5b98\u7f51\&quot;, \&quot;https__www.sc.com_cn_\&quot;, \&quot;test15\&quot;], [16, \&quot;title_failed_15947111234895216\&quot;, \&quot;https__www.spdb.com.cn\&quot;, \&quot;test16\&quot;], [17, \&quot;\u6dd8\u5b9d\u7f51 - \u6dd8\uff01\u6211\u559c\u6b22\&quot;, \&quot;https__www.taobao.com_\&quot;, \&quot;test17\&quot;], [18, \&quot;\u8d22\u4ed8\u901a - \u4f1a\u652f\u4ed8 \u4f1a\u751f\u6d3b\&quot;, \&quot;https__www.tenpay.com_v3_\&quot;, \&quot;test18\&quot;], [19, \&quot;\u5929\u732btmall.com--\u7406\u60f3\u751f\u6d3b\u4e0a\u5929\u732b\&quot;, \&quot;https__www.tmall.com_\&quot;, \&quot;test19\&quot;], [20, \&quot;title_failed_15947111907866170\&quot;, \&quot;https__www.voachinese.com \&quot;, \&quot;test20\&quot;], [21, \&quot;\u5e73\u5b89\u94f6\u884c\u5b98\u65b9\u7f51\u7ad9\&quot;, \&quot;http__bank.pingan.com_index.jsp\&quot;, \&quot;test21\&quot;], [22, \&quot;\u4e2d\u56fd\u519c\u4e1a\u94f6\u884c\&quot;, \&quot;http__www.abchina.com_cn_\&quot;, \&quot;test22\&quot;], [23, \&quot;\u4ea4\u901a\u94f6\u884c - \u4ea4\u94f6\u91d1\u878d\u7f51\&quot;, \&quot;http__www.bankcomm.com_BankCommSite_default.shtml\&quot;, \&quot;test23\&quot;], [24, \&quot;\u6e24\u6d77\u94f6\u884c\u6b22\u8fce\u60a8\&quot;, \&quot;http__www.cbhb.com.cn_bhbank_S101_index.htm\&quot;, \&quot;test24\&quot;], [25, \&quot;\u6b22\u8fce\u8bbf\u95ee\u4e2d\u56fd\u5efa\u8bbe\u94f6\u884c\u7f51\u7ad9\&quot;, \&quot;http__www.ccb.com_cn_home_indexv3.html\&quot;, \&quot;test25\&quot;], [26, \&quot;\u9996\u9875-\u4e2d\u56fd\u5149\u5927\u94f6\u884c\&quot;, \&quot;http__www.cebbank.com_\&quot;, \&quot;test26\&quot;], [27, \&quot;\u9996\u9875 - \u5e7f\u53d1\u94f6\u884c\&quot;, \&quot;http__www.cgbchina.com.cn_\&quot;, \&quot;test27\&quot;], [28, \&quot;\u5174\u4e1a\u94f6\u884c\u6b22\u8fce\u60a8\&quot;, \&quot;http__www.cib.com.cn_cn_index.html\&quot;, \&quot;test28\&quot;], [29, \&quot;\u4e2d\u4fe1\u7f51\u4e0a\u94f6\u884c_\u7406\u8d22\u4ea7\u54c1\u3001\u7533\u8bf7\u4fe1\u7528\u5361\u3001\u4e2a\u4eba\u8d37\u6b3e-\u4e2d\u4fe1\u94f6\u884c\u5b98\u7f51\&quot;, \&quot;http__www.citicbank.com_\&quot;, \&quot;test29\&quot;], [30, \&quot;\u4e2d\u56fd\u6c11\u751f\u94f6\u884c\&quot;, \&quot;http__www.cmbc.com.cn_\&quot;, \&quot;test30\&quot;], [31, \&quot;\u4e00\u7f51\u901a\u4e3b\u9875 -- \u62db\u5546\u94f6\u884c\u5b98\u65b9\u7f51\u7ad9\&quot;, \&quot;http__www.cmbchina.com_\&quot;, \&quot;test31\&quot;], [32, \&quot;\u6d59\u5546\u94f6\u884c\u80a1\u4efd\u6709\u9650\u516c\u53f8\&quot;, \&quot;http__www.czbank.com_cn_index.shtml\&quot;, \&quot;test32\&quot;], [33, \&quot;\u4e2d\u56fd\u653f\u5e9c\u7f51_\u4e2d\u592e\u4eba\u6c11\u653f\u5e9c\u95e8\u6237\u7f51\u7ad9\&quot;, \&quot;http__www.gov.cn_\&quot;, \&quot;test33\&quot;], [34, \&quot;\u6b22\u8fce\u5149\u4e34\u4e1c\u4e9a\u94f6\u884c\uff08\u4e2d\u56fd\uff09\u6709\u9650\u516c\u53f8\&quot;, \&quot;http__www.hkbea.com.cn_PersonalBusiness_\&quot;, \&quot;test34\&quot;], [35, \&quot;\u6c47\u4e30\u4e2d\u56fd-\u4fe1\u7528\u5361-\u7406\u8d22-\u8d37\u6b3e-\u4fdd\u9669-\u5b58\u6b3e\&quot;, \&quot;http__www.hsbc.com.cn_\&quot;, \&quot;test35\&quot;], [36, \&quot;\u534e\u590f\u94f6\u884c-\u9996\u9875\&quot;, \&quot;http__www.hxb.com.cn_index.shtml\&quot;, \&quot;test36\&quot;], [37, \&quot;\u4e2d\u56fd\u5de5\u5546\u94f6\u884c\u4e2d\u56fd\u7f51\u7ad9\&quot;, \&quot;http__www.icbc.com.cn_icbc_\&quot;, \&quot;test37\&quot;], [38, \&quot;\u4e2d\u534e\u4eba\u6c11\u5171\u548c\u56fd\u4ea4\u901a\u8fd0\u8f93\u90e8 - Ministry of Transport of the People&#x27;s Republic of China\&quot;, \&quot;http__www.mot.gov.cn_\&quot;, \&quot;test38\&quot;], [39, \&quot;title_failed_15947114304175750\&quot;, \&quot;http__www.nhc.gov.cn \&quot;, \&quot;test39\&quot;], [40, \&quot;\u4e2d\u56fd\u90ae\u653f\u50a8\u84c4\u94f6\u884c\&quot;, \&quot;http__www.psbc.com_cn_index.html\&quot;, \&quot;test40\&quot;]]&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_1_rules_cdn_put.py::test_1_rules_cdn[{&quot;id&quot;: 96,&quot;update_cname&quot;: &quot;.com&quot;,&quot;update_service_provider&quot;: &quot;国际&quot;}]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>400
+{
+    &quot;operate&quot;: &quot;update&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 96,
+        &quot;update_cname&quot;: &quot;.com&quot;,
+        &quot;update_service_provider&quot;: &quot;\u56fd\u9645&quot;
+    },
+    &quot;error&quot;: &quot;10006&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_2_rules_cdn_post.py::test_2_rules_cdn_post[{&quot;cname&quot;: &quot;.com&quot;,&quot;service_provider&quot;: &quot;国际&quot;}]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;insert&quot;,
+    &quot;detail_content&quot;: {
+        &quot;cname&quot;: &quot;.com&quot;,
+        &quot;service_provider&quot;: &quot;\u56fd\u9645&quot;
+    },
+    &quot;data&quot;: &quot;{\&quot;id\&quot;: 96, \&quot;insert_status\&quot;: \&quot;succeeded\&quot;}&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_3_rules_download_put.py::test_3_rules_download_put[{&quot;id&quot;: 5,&quot;update_word&quot;: &quot;words&quot;}]</td>
+          <td class="col-duration">2.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>400
+{
+    &quot;operate&quot;: &quot;update&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 5,
+        &quot;update_word&quot;: &quot;words&quot;
+    },
+    &quot;error&quot;: &quot;10007&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_4_rules_download_post.py::test_4_download_post[{&quot;key_word&quot;: &quot;关键词&quot;}]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>400
+{
+    &quot;operate&quot;: &quot;insert&quot;,
+    &quot;detail_content&quot;: &quot;\u5173\u952e\u8bcd&quot;,
+    &quot;error&quot;: &quot;10005&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_5_rules_drug_put.py::test_5_rules_drug_put[{&quot;id&quot;: 96,&quot;update_word&quot;: &quot;涉毒关键词&quot;,&quot;update_score&quot;: 1}]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>400
+{
+    &quot;operate&quot;: &quot;update&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 96,
+        &quot;update_word&quot;: &quot;\u6d89\u6bd2\u5173\u952e\u8bcd&quot;,
+        &quot;update_score&quot;: 1
+    },
+    &quot;error&quot;: &quot;10006&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_6_rules_drug_post.py::test_6_rules_drug_post[{&quot;key_word&quot;: &quot;涉毒关键词&quot;,&quot;score&quot;: 2}]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;insert&quot;,
+    &quot;detail_content&quot;: {
+        &quot;key_word&quot;: &quot;\u6d89\u6bd2\u5173\u952e\u8bcd&quot;,
+        &quot;score&quot;: 2
+    },
+    &quot;data&quot;: &quot;{\&quot;id\&quot;: 96, \&quot;insert_status\&quot;: \&quot;succeeded\&quot;}&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_7_rules_mirror_put.py::test_7_rules_mirror_put[{&quot;id&quot;: 1,&quot;remark&quot;: &quot;中国工商银行&quot;,&quot;recrawl&quot;: true}]</td>
+          <td class="col-duration">69.58</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;update&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 1,
+        &quot;remark&quot;: &quot;\u4e2d\u56fd\u5de5\u5546\u94f6\u884c&quot;,
+        &quot;recrawl&quot;: true
+    },
+    &quot;data&quot;: &quot;\&quot;successed\&quot;&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_8_rules_mirror_post.py::test_8_rules_mirror_post[{&quot;id&quot;: 1,&quot;url&quot;: &quot;https://www.csdn.net/&quot;, &quot;website_title&quot;: &quot;腾讯首页&quot;,&quot;website_text&quot;: &quot;csdn&quot;,&quot;remark&quot;: &quot;csdn网站&quot;}]</td>
+          <td class="col-duration">21.33</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>400
+{
+    &quot;operate&quot;: &quot;insert&quot;,
+    &quot;detail_content&quot;: {
+        &quot;id&quot;: 1,
+        &quot;url&quot;: &quot;https://www.csdn.net/&quot;,
+        &quot;website_title&quot;: &quot;\u817e\u8baf\u9996\u9875&quot;,
+        &quot;website_text&quot;: &quot;csdn&quot;,
+        &quot;remark&quot;: &quot;csdn\u7f51\u7ad9&quot;
+    },
+    &quot;error&quot;: &quot;10001&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_9_rules_rest.py::test_9_rules_rest[cdn]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;showdatabase&quot;,
+    &quot;detail_content&quot;: &quot;cdn&quot;,
+    &quot;data&quot;: &quot;{\&quot;0\&quot;: {\&quot;.cdn.dnsv1.com\&quot;: \&quot;\u817e\u8baf\u4e91\&quot;}, \&quot;1\&quot;: {\&quot;.cdntip.com\&quot;: \&quot;\u817e\u8baf\u4e91\&quot;}, \&quot;2\&quot;: {\&quot;.qcloudcjgj.com\&quot;: \&quot;\u817e\u8baf\u4e91\&quot;}, \&quot;3\&quot;: {\&quot;.yunjiasu-cdn\&quot;: \&quot;\u767e\u5ea6\u4e91\u52a0\u901f\&quot;}, \&quot;4\&quot;: {\&quot;.jomodns.com\&quot;: \&quot;\u767e\u5ea6\u4e91\u52a0\u901f\&quot;}, \&quot;5\&quot;: {\&quot;.alikunlun.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;6\&quot;: {\&quot;.aliyuncs\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;7\&quot;: {\&quot;.kunlunar.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;8\&quot;: {\&quot;.kunlungr.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;9\&quot;: {\&quot;.kunlunca.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;10\&quot;: {\&quot;.kunlunhuf.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;11\&quot;: {\&quot;.aliyun-inc\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;12\&quot;: {\&quot;.aliyun.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;13\&quot;: {\&quot;.cdngslb.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;14\&quot;: {\&quot;.kunluncan.com\&quot;: \&quot;\u963f\u91cc\u4e91\&quot;}, \&quot;15\&quot;: {\&quot;spool.grid.sinaedge.com\&quot;: \&quot;\u65b0\u6d6a\u4e91\&quot;}, \&quot;16\&quot;: {\&quot;t0.applinzi.com\&quot;: \&quot;\u65b0\u6d6a\u4e91\&quot;}, \&quot;17\&quot;: {\&quot;pop3.sina.com.cn\&quot;: \&quot;\u65b0\u6d6a\u4e91\&quot;}, \&quot;18\&quot;: {\&quot;imap.sina.com.cn\&quot;: \&quot;\u65b0\u6d6a\u4e91\&quot;}, \&quot;19\&quot;: {\&quot;cms.sina.cn\&quot;: \&quot;\u65b0\u6d6a\u4e91\&quot;}, \&quot;20\&quot;: {\&quot;.jiashule.com\&quot;: \&quot;\u52a0\u901f\u4e50\&quot;}, \&quot;21\&quot;: {\&quot;.lxcdn.com\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;22\&quot;: {\&quot;.lxdns.com\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;23\&quot;: {\&quot;.lxsvc.cn\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;24\&quot;: {\&quot;ccgslb.com.cn\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;25\&quot;: {\&quot;.chinacache.net\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;26\&quot;: {\&quot;cncssr.chinacache.net\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;27\&quot;: {\&quot;.ccgslb.net\&quot;: \&quot;\u84dd\u6c5b\&quot;}, \&quot;28\&quot;: {\&quot;.wscdns.com\&quot;: \&quot;\u7f51\u5bbf\&quot;}, \&quot;29\&quot;: {\&quot;.cdngtm.com\&quot;: \&quot;\u7f51\u5bbf\&quot;}, \&quot;30\&quot;: {\&quot;.cdn20.com\&quot;: \&quot;\u7f51\u5bbf\&quot;}, \&quot;31\&quot;: {\&quot;akamai-staging.net\&quot;: \&quot;Akamai\&quot;}, \&quot;32\&quot;: {\&quot;.akamaized.net\&quot;: \&quot;Akamai\&quot;}, \&quot;33\&quot;: {\&quot;.akamai.net\&quot;: \&quot;Akamai\&quot;}, \&quot;34\&quot;: {\&quot;.akamaiedge.net\&quot;: \&quot;Akamai\&quot;}, \&quot;35\&quot;: {\&quot;.akadns.net\&quot;: \&quot;Akamai\&quot;}, \&quot;36\&quot;: {\&quot;.cloudfront.net\&quot;: \&quot;Amazon Cloudfront\&quot;}, \&quot;37\&quot;: {\&quot;.amazonaws.com\&quot;: \&quot;Amazon Cloudfront\&quot;}, \&quot;38\&quot;: {\&quot;.fastcdn.com\&quot;: \&quot;\u5e1d\u8054\&quot;}, \&quot;39\&quot;: {\&quot;.flxdns.com\&quot;: \&quot;\u5e1d\u8054\&quot;}, \&quot;40\&quot;: {\&quot;mailhz.qiye.163.com\&quot;: \&quot;\u7f51\u6613\u4e91\&quot;}, \&quot;41\&quot;: {\&quot;qiye.163.com\&quot;: \&quot;\u7f51\u6613\u4e91\&quot;}, \&quot;42\&quot;: {\&quot;.netease.com\&quot;: \&quot;\u7f51\u6613\u4e91\&quot;}, \&quot;43\&quot;: {\&quot;.188.com\&quot;: \&quot;\u7f51\u6613\u4e91\&quot;}, \&quot;44\&quot;: {\&quot;.cdncenter.cn\&quot;: \&quot;\u7f8e\u6a59\&quot;}, \&quot;45\&quot;: {\&quot;.cndns5.com\&quot;: \&quot;\u7f8e\u6a59\&quot;}, \&quot;46\&quot;: {\&quot;.800cdn.com\&quot;: \&quot;\u897f\u90e8\u6570\u7801cdn\&quot;}, \&quot;47\&quot;: {\&quot;.vhostgo.com\&quot;: \&quot;\u897f\u90e8\u6570\u7801cdn\&quot;}, \&quot;48\&quot;: {\&quot;.gotoip4.com\&quot;: \&quot;\u897f\u90e8\u6570\u7801cdn\&quot;}, \&quot;49\&quot;: {\&quot;.abc188.com\&quot;: \&quot;\u897f\u90e8\u6570\u7801cdn\&quot;}, \&quot;50\&quot;: {\&quot;.trpcdn.net\&quot;: \&quot;\u767d\u4e91\u5c71\u79d1\u6280\&quot;}, \&quot;51\&quot;: {\&quot;.bsgslb.cn\&quot;: \&quot;\u767d\u4e91\u5c71\u79d1\u6280\&quot;}, \&quot;52\&quot;: {\&quot;.aicdn.com\&quot;: \&quot;\u53c8\u62cd\u4e91\&quot;}, \&quot;53\&quot;: {\&quot;.qhcdn.com\&quot;: \&quot;360\u4e91\u52a0\u901f\&quot;}, \&quot;54\&quot;: {\&quot;.so.com\&quot;: \&quot;360\u4e91\u52a0\u901f\&quot;}, \&quot;55\&quot;: {\&quot;.360cloudwaf.com\&quot;: \&quot;360\u4e91\u52a0\u901f\&quot;}, \&quot;56\&quot;: {\&quot;.yundundns.com\&quot;: \&quot;\u4e0a\u6d77\u4e91\u76fe\&quot;}, \&quot;57\&quot;: {\&quot;.hwwsdns.cn\&quot;: \&quot;\u4e0a\u6d77\u4e91\u76fe\&quot;}, \&quot;58\&quot;: {\&quot;.cname.jsd.cc\&quot;: \&quot;\u4e0a\u6d77\u4e91\u76fe\&quot;}, \&quot;59\&quot;: {\&quot;.powercdn.cn\&quot;: \&quot;\u52a8\u529b\u5728\u7ebf\&quot;}, \&quot;60\&quot;: {\&quot;.a.aocde.com\&quot;: \&quot;\u5317\u4eac\u521b\u4e16\u4e91\&quot;}, \&quot;61\&quot;: {\&quot;.b.aocde.com\&quot;: \&quot;\u5317\u4eac\u521b\u4e16\u4e91\&quot;}, \&quot;62\&quot;: {\&quot;.ksyuncdn.com\&quot;: \&quot;\u91d1\u5c71\u4e91\&quot;}, \&quot;63\&quot;: {\&quot;.ctxcdn.cn\&quot;: \&quot;\u4e2d\u56fd\u7535\u4fe1\&quot;}, \&quot;64\&quot;: {\&quot;.qiniudns.com\&quot;: \&quot;\u4e0a\u6d77\u4e03\u725b\&quot;}, \&quot;65\&quot;: {\&quot;.jdcdn.com\&quot;: \&quot;\u4eac\u4e1c\u4e91\&quot;}, \&quot;66\&quot;: {\&quot;.jcloud-cdn.com\&quot;: \&quot;\u4eac\u4e1c\u4e91\&quot;}, \&quot;67\&quot;: {\&quot;.cdnhwc2.com\&quot;: \&quot;\u534e\u4e3a\u4e91\&quot;}, \&quot;68\&quot;: {\&quot;.cloudfence.cn\&quot;: \&quot;\u84dd\u76fe\&quot;}, \&quot;69\&quot;: {\&quot;.azioncdn.net\&quot;: \&quot;Azion\&quot;}, \&quot;70\&quot;: {\&quot;.cachefly.net\&quot;: \&quot;Cachefly\&quot;}, \&quot;71\&quot;: {\&quot;.cdn77.net\&quot;: \&quot;CDN77\&quot;}, \&quot;72\&quot;: {\&quot;.cdn77.org\&quot;: \&quot;CDN77\&quot;}, \&quot;73\&quot;: {\&quot;cdnetworks.com.gccdn.net\&quot;: \&quot;CDNetworks\&quot;}, \&quot;74\&quot;: {\&quot;.cdnify.io\&quot;: \&quot;CDNify\&quot;}, \&quot;75\&quot;: {\&quot;.cdnsun.net\&quot;: \&quot;CDNsun\&quot;}, \&quot;76\&quot;: {\&quot;.cdnvideo.ru\&quot;: \&quot;CDNvideo\&quot;}, \&quot;77\&quot;: {\&quot;.wscloudcdn.com\&quot;: \&quot;ChinaNetCenter\&quot;}, \&quot;78\&quot;: {\&quot;cdn.cloudflare.net\&quot;: \&quot;CloudFlare\&quot;}, \&quot;79\&quot;: {\&quot;.edgecastcdn.net\&quot;: \&quot;EdgeCast\&quot;}, \&quot;80\&quot;: {\&quot;.fastly.net\&quot;: \&quot;Fastly\&quot;}, \&quot;81\&quot;: {\&quot;.hwcdn.net\&quot;: \&quot;Highwinds\&quot;}, \&quot;82\&quot;: {\&quot;.incapdns.net\&quot;: \&quot;Incapsula\&quot;}, \&quot;83\&quot;: {\&quot;.internapcdn.net\&quot;: \&quot;Internap\&quot;}, \&quot;84\&quot;: {\&quot;.kxcdn.com\&quot;: \&quot;KeyCDN\&quot;}, \&quot;85\&quot;: {\&quot;.awsdns\&quot;: \&quot;KeyCDN\&quot;}, \&quot;86\&quot;: {\&quot;.lswcdn.net\&quot;: \&quot;Leaseweb\&quot;}, \&quot;87\&quot;: {\&quot;.fpbns.net\&quot;: \&quot;Level3\&quot;}, \&quot;88\&quot;: {\&quot;.footprint.net\&quot;: \&quot;Level3\&quot;}, \&quot;89\&quot;: {\&quot;vo.llnwd.net\&quot;: \&quot;Limelight\&quot;}, \&quot;90\&quot;: {\&quot;netdna-cdn.com\&quot;: \&quot;MaxCDN\&quot;}, \&quot;91\&quot;: {\&quot;mwcloudcdn.com\&quot;: \&quot;QUANTIL\&quot;}, \&quot;92\&quot;: {\&quot;.speedcdns.com\&quot;: \&quot;QUANTIL\&quot;}, \&quot;93\&quot;: {\&quot;.azureedge.net\&quot;: \&quot;Azure CDN\&quot;}, \&quot;94\&quot;: {\&quot;.anankecdn.com.br\&quot;: \&quot;Ananke\&quot;}, \&quot;95\&quot;: {\&quot;.presscdn.com\&quot;: \&quot;Presscdn\&quot;}, \&quot;96\&quot;: {\&quot;.com\&quot;: \&quot;\u56fd\u9645\&quot;}}&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_9_rules_rest.py::test_9_rules_rest[vpn]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;showdatabase&quot;,
+    &quot;detail_content&quot;: &quot;vpn&quot;,
+    &quot;data&quot;: &quot;{\&quot;0\&quot;: \&quot;\u81ea\u7531\&quot;, \&quot;1\&quot;: \&quot;\u7f51\u7edc\&quot;, \&quot;2\&quot;: \&quot;\u5173\u952e\u8bcd57\&quot;, \&quot;3\&quot;: \&quot;\u5168\u7403\&quot;, \&quot;4\&quot;: \&quot;\u670d\u52a1\u5668\&quot;, \&quot;5\&quot;: \&quot;\u9000\u6b3e\&quot;, \&quot;6\&quot;: \&quot;\u5173\u952e\u8bcd\&quot;, \&quot;7\&quot;: \&quot;\u5173\u952e\u8bcd77\&quot;}&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_9_rules_rest.py::test_9_rules_rest[download]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;showdatabase&quot;,
+    &quot;detail_content&quot;: &quot;download&quot;,
+    &quot;data&quot;: &quot;{\&quot;0\&quot;: \&quot;mpg\&quot;, \&quot;1\&quot;: \&quot;3gp\&quot;, \&quot;2\&quot;: \&quot;vob\&quot;, \&quot;3\&quot;: \&quot;rmvb\&quot;, \&quot;4\&quot;: \&quot;mov\&quot;, \&quot;5\&quot;: \&quot;words\&quot;, \&quot;6\&quot;: \&quot;avi\&quot;, \&quot;7\&quot;: \&quot;wmv\&quot;, \&quot;8\&quot;: \&quot;mp4\&quot;, \&quot;9\&quot;: \&quot;mp3\&quot;, \&quot;10\&quot;: \&quot;mkv\&quot;, \&quot;11\&quot;: \&quot;zip\&quot;, \&quot;12\&quot;: \&quot;7z\&quot;, \&quot;13\&quot;: \&quot;tar\&quot;, \&quot;14\&quot;: \&quot;\u5173\u952e\u8bcd\&quot;}&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_9_rules_rest.py::test_9_rules_rest[drug]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;showdatabase&quot;,
+    &quot;detail_content&quot;: &quot;drug&quot;,
+    &quot;data&quot;: &quot;{\&quot;0\&quot;: {\&quot;\u7f05\u51b0\&quot;: 5}, \&quot;1\&quot;: {\&quot;\u957f\u6cbb\u7b4b\&quot;: 5}, \&quot;2\&quot;: {\&quot;\u96cc\u5316\u79cd\u5b50\&quot;: 5}, \&quot;3\&quot;: {\&quot;\u55e8\u64cd\&quot;: 5}, \&quot;4\&quot;: {\&quot;\u98de\u53f6\u5b50\&quot;: 5}, \&quot;5\&quot;: {\&quot;\u7f05\u8d27\&quot;: 5}, \&quot;6\&quot;: {\&quot;\u55e8\u51b0\&quot;: 5}, \&quot;7\&quot;: {\&quot;\u4eba\u4f53\u5e26\u8d27\&quot;: 5}, \&quot;8\&quot;: {\&quot;\u7f9f\u4e9a\u80fa\&quot;: 5}, \&quot;9\&quot;: {\&quot;\u82ef\u57fa\u4e19\u916e\&quot;: 5}, \&quot;10\&quot;: {\&quot;\u5316\u5408\u8089\&quot;: 5}, \&quot;11\&quot;: {\&quot;\u505a\u80fa\&quot;: 5}, \&quot;12\&quot;: {\&quot;\u7f05\u679c\&quot;: 5}, \&quot;13\&quot;: {\&quot;\u7532\u5361\u897f\u916e\&quot;: 5}, \&quot;14\&quot;: {\&quot;\u90bb\u916e\&quot;: 5}, \&quot;15\&quot;: {\&quot;\u9ebb\u9ec4\u7d20\&quot;: 5}, \&quot;16\&quot;: {\&quot;\u7ea6\u55e8\&quot;: 5}, \&quot;17\&quot;: {\&quot;\u6eb4\u4ee3\&quot;: 5}, \&quot;18\&quot;: {\&quot;\u6c2f\u80fa\u916e\&quot;: 5}, \&quot;19\&quot;: {\&quot;\u82ef\u4e19\u80fa\&quot;: 5}, \&quot;20\&quot;: {\&quot;\u6709\u80fa\&quot;: 5}, \&quot;21\&quot;: {\&quot;\u6eb4\u7d20\&quot;: 5}, \&quot;22\&quot;: {\&quot;\u82ef\u4e19\u916e\&quot;: 5}, \&quot;23\&quot;: {\&quot;\u6c42\u8089\&quot;: 5}, \&quot;24\&quot;: {\&quot;\u6c42\u7b4b\&quot;: 5}, \&quot;25\&quot;: {\&quot;\u5ddd\u8d27\&quot;: 5}, \&quot;26\&quot;: {\&quot;\u51fa\u7b4b\&quot;: 5}, \&quot;27\&quot;: {\&quot;\u5ddd\u8089\&quot;: 5}, \&quot;28\&quot;: {\&quot;\u5eb7\u6cf0\u514b\&quot;: 5}, \&quot;29\&quot;: {\&quot;\u8d70\u677f\&quot;: 5}, \&quot;30\&quot;: {\&quot;\u690d\u7269\u8089\&quot;: 5}, \&quot;31\&quot;: {\&quot;\u51fa\u8089\&quot;: 5}, \&quot;32\&quot;: {\&quot;\u6536\u80fa\&quot;: 5}, \&quot;33\&quot;: {\&quot;\u5316\u5408\u7d20\&quot;: 5}, \&quot;34\&quot;: {\&quot;\u55e80\&quot;: 2}, \&quot;35\&quot;: {\&quot;\u55e81\&quot;: 2}, \&quot;36\&quot;: {\&quot;\u8d70\u4e00\u677f\&quot;: 2}, \&quot;37\&quot;: {\&quot;\u771f\u5546\&quot;: 2}, \&quot;38\&quot;: {\&quot;\u4e59\u9178\u4e59\u916f\&quot;: 2}, \&quot;39\&quot;: {\&quot;\u80fa\u5316\&quot;: 2}, \&quot;40\&quot;: {\&quot;\u6253k\&quot;: 2}, \&quot;41\&quot;: {\&quot;1766\&quot;: 2}, \&quot;42\&quot;: {\&quot;\u6599\u5934\&quot;: 2}, \&quot;43\&quot;: {\&quot;\u68c0\u67e5\u7ad9\&quot;: 2}, \&quot;44\&quot;: {\&quot;\u540e\u6b3e\&quot;: 2}, \&quot;45\&quot;: {\&quot;\u540e\u8d27\&quot;: 2}, \&quot;46\&quot;: {\&quot;\u627e\u6599\u5934\&quot;: 2}, \&quot;47\&quot;: {\&quot;\u533b\u836f\u4e2d\u95f4\u4f53\&quot;: 2}, \&quot;48\&quot;: {\&quot;\u82ef\u4e59\u8148\&quot;: 2}, \&quot;49\&quot;: {\&quot;\u4e00\u4e2a\u80fa\&quot;: 2}, \&quot;50\&quot;: {\&quot;\u90ae\u7968\&quot;: 1}, \&quot;51\&quot;: {\&quot;\u81ed\u9f2c\&quot;: 1}, \&quot;52\&quot;: {\&quot;\u53f6\u5b50\&quot;: 1}, \&quot;53\&quot;: {\&quot;\u55d1\u836f\&quot;: 1}, \&quot;54\&quot;: {\&quot;\u9762\u4ea4\&quot;: 1}, \&quot;55\&quot;: {\&quot;\u71c3\u6599\&quot;: 1}, \&quot;56\&quot;: {\&quot;\u7ed3\u6676\&quot;: 1}, \&quot;57\&quot;: {\&quot;\u51fa\u8349\&quot;: 1}, \&quot;58\&quot;: {\&quot;\u79c1\u804a\&quot;: 1}, \&quot;59\&quot;: {\&quot;\u9053\u53cb\&quot;: 1}, \&quot;60\&quot;: {\&quot;\u6c34\u57f9\&quot;: 1}, \&quot;61\&quot;: {\&quot;\u55e8\u7247\&quot;: 1}, \&quot;62\&quot;: {\&quot;\u8f85\u6599\&quot;: 1}, \&quot;63\&quot;: {\&quot;\u53ef\u96f6\&quot;: 1}, \&quot;64\&quot;: {\&quot;\u53ef\u6279\&quot;: 1}, \&quot;65\&quot;: {\&quot;\u5927\u8089\&quot;: 1}, \&quot;66\&quot;: {\&quot;\u4e0a\u5bb6\&quot;: 1}, \&quot;67\&quot;: {\&quot;\u51fa\u5dee\&quot;: 1}, \&quot;68\&quot;: {\&quot;\u8fdb\u53e3\&quot;: 1}, \&quot;69\&quot;: {\&quot;\u4e0b\u5bb6\&quot;: 1}, \&quot;70\&quot;: {\&quot;\u56fd\u4ea7\&quot;: 1}, \&quot;71\&quot;: {\&quot;\u8bbe\u5907\&quot;: 1}, \&quot;72\&quot;: {\&quot;\u6280\u672f\&quot;: 1}, \&quot;73\&quot;: {\&quot;\u9ad8\u98de\&quot;: 1}, \&quot;74\&quot;: {\&quot;\u5148\u8d27\&quot;: 1}, \&quot;75\&quot;: {\&quot;\u5ba4\u5185\&quot;: 1}, \&quot;76\&quot;: {\&quot;\u98de\u884c\&quot;: 1}, \&quot;77\&quot;: {\&quot;\u98de\u884c\u5458\&quot;: 1}, \&quot;78\&quot;: {\&quot;\u5148\u6b3e\&quot;: 1}, \&quot;79\&quot;: {\&quot;\u5760\u673a\&quot;: 1}, \&quot;80\&quot;: {\&quot;\u6563\u8d27\&quot;: 1}, \&quot;81\&quot;: {\&quot;\u9a97\u5b50\u52ff\u6270\&quot;: 1}, \&quot;82\&quot;: {\&quot;\u57cb\u96f7\&quot;: 1}, \&quot;83\&quot;: {\&quot;\u6c42\u5927\u6599\&quot;: 1}, \&quot;84\&quot;: {\&quot;\u96f6\u6279\&quot;: 1}, \&quot;85\&quot;: {\&quot;\u8425\u517b\u6db2\&quot;: 1}, \&quot;86\&quot;: {\&quot;\u5ba4\u5916\&quot;: 1}, \&quot;87\&quot;: {\&quot;\u51fa\u7387\&quot;: 1}, \&quot;88\&quot;: {\&quot;\u7b28\u9e21\&quot;: 1}, \&quot;89\&quot;: {\&quot;\u5047\u51b0\&quot;: 1}, \&quot;90\&quot;: {\&quot;\u627e\u5927\u6599\&quot;: 1}, \&quot;91\&quot;: {\&quot;\u5c94\u9053\&quot;: 1}, \&quot;92\&quot;: {\&quot;\u6536\u7d20\&quot;: 1}, \&quot;93\&quot;: {\&quot;\u519c\u6279\&quot;: 1}, \&quot;94\&quot;: {\&quot;\u519c\u51fa\&quot;: 1}, \&quot;95\&quot;: {\&quot;\u83e0\u841d\u5feb\u8f66\&quot;: 1}, \&quot;96\&quot;: {\&quot;\u6d89\u6bd2\u5173\u952e\u8bcd\&quot;: 2}}&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">rules/test_9_rules_rest.py::test_9_rules_rest[mirror]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>200
+{
+    &quot;operate&quot;: &quot;showdatabase&quot;,
+    &quot;detail_content&quot;: &quot;mirror&quot;,
+    &quot;data&quot;: &quot;[[0, \&quot;\u767b\u5f55 - \u652f\u4ed8\u5b9d\&quot;, \&quot;https__auth.alipay.com_login_index.htm\&quot;, \&quot;test0\&quot;], [1, \&quot;title_failed_15959826477408847\&quot;, \&quot;https__jr.jd.com_\&quot;, \&quot;\u4e2d\u56fd\u5de5\u5546\u94f6\u884c\&quot;], [2, \&quot;title_failed_15947107843199489\&quot;, \&quot;https__ogate.org \&quot;, \&quot;test2\&quot;], [3, \&quot;\u652f\u4ed8\u5b9d \u77e5\u6258\u4ed8\uff01\&quot;, \&quot;https__www.alipay.com_\&quot;, \&quot;test3\&quot;], [4, \&quot;title_failed_15947108274950478\&quot;, \&quot;https__www.bannedbook.org \&quot;, \&quot;test4\&quot;], [5, \&quot;\u82b1\u65d7\u94f6\u884c(CitiBank)\u4e2d\u56fd\u5b98\u7f51-\u4fe1\u7528\u5361-\u7406\u8d22-\u5b58\u6b3e-\u8d37\u6b3e-\u4fdd\u9669\&quot;, \&quot;https__www.citibank.com.cn_sim_index.htm \&quot;, \&quot;test5\&quot;], [6, \&quot;CSDN - \u4e13\u4e1a\u5f00\u53d1\u8005\u793e\u533a\&quot;, \&quot;https__www.csdn.net \&quot;, \&quot;test6\&quot;], [7, \&quot;title_failed_15947108894357220\&quot;, \&quot;https__www.epochtimes.com \&quot;, \&quot;test7\&quot;], [8, \&quot;\u4e2d\u534e\u4eba\u6c11\u5171\u548c\u56fd\u5916\u4ea4\u90e8\&quot;, \&quot;https__www.fmprc.gov.cn_web_\&quot;, \&quot;test8\&quot;], [9, \&quot;\u4eac\u4e1c(JD.COM)-\u6b63\u54c1\u4f4e\u4ef7\u3001\u54c1\u8d28\u4fdd\u969c\u3001\u914d\u9001\u53ca\u65f6\u3001\u8f7b\u677e\u8d2d\u7269\uff01\&quot;, \&quot;https__www.jd.com_\&quot;, \&quot;test9\&quot;], [10, \&quot;\u4e2d\u534e\u4eba\u6c11\u5171\u548c\u56fd\u516c\u5b89\u90e8\&quot;, \&quot;https__www.mps.gov.cn \&quot;, \&quot;test10\&quot;], [11, \&quot;title_failed_15947109943264919\&quot;, \&quot;https__www.ntdtv.com \&quot;, \&quot;test11\&quot;], [12, \&quot;\u62fc\u591a\u591a \u65b0\u7535\u5546\u5f00\u521b\u8005\&quot;, \&quot;https__www.pinduoduo.com_\&quot;, \&quot;test12\&quot;], [13, \&quot;\u817e\u8baf\u9996\u9875\&quot;, \&quot;https__www.qq.com_\&quot;, \&quot;test13\&quot;], [14, \&quot;title_failed_15947110494312542\&quot;, \&quot;https__www.rfa.org \&quot;, \&quot;test14\&quot;], [15, \&quot;\u6e23\u6253\u94f6\u884c(\u4e2d\u56fd)\u5b98\u7f51\&quot;, \&quot;https__www.sc.com_cn_\&quot;, \&quot;test15\&quot;], [16, \&quot;title_failed_15947111234895216\&quot;, \&quot;https__www.spdb.com.cn\&quot;, \&quot;test16\&quot;], [17, \&quot;\u6dd8\u5b9d\u7f51 - \u6dd8\uff01\u6211\u559c\u6b22\&quot;, \&quot;https__www.taobao.com_\&quot;, \&quot;test17\&quot;], [18, \&quot;\u8d22\u4ed8\u901a - \u4f1a\u652f\u4ed8 \u4f1a\u751f\u6d3b\&quot;, \&quot;https__www.tenpay.com_v3_\&quot;, \&quot;test18\&quot;], [19, \&quot;\u5929\u732btmall.com--\u7406\u60f3\u751f\u6d3b\u4e0a\u5929\u732b\&quot;, \&quot;https__www.tmall.com_\&quot;, \&quot;test19\&quot;], [20, \&quot;title_failed_15947111907866170\&quot;, \&quot;https__www.voachinese.com \&quot;, \&quot;test20\&quot;], [21, \&quot;\u5e73\u5b89\u94f6\u884c\u5b98\u65b9\u7f51\u7ad9\&quot;, \&quot;http__bank.pingan.com_index.jsp\&quot;, \&quot;test21\&quot;], [22, \&quot;\u4e2d\u56fd\u519c\u4e1a\u94f6\u884c\&quot;, \&quot;http__www.abchina.com_cn_\&quot;, \&quot;test22\&quot;], [23, \&quot;\u4ea4\u901a\u94f6\u884c - \u4ea4\u94f6\u91d1\u878d\u7f51\&quot;, \&quot;http__www.bankcomm.com_BankCommSite_default.shtml\&quot;, \&quot;test23\&quot;], [24, \&quot;\u6e24\u6d77\u94f6\u884c\u6b22\u8fce\u60a8\&quot;, \&quot;http__www.cbhb.com.cn_bhbank_S101_index.htm\&quot;, \&quot;test24\&quot;], [25, \&quot;\u6b22\u8fce\u8bbf\u95ee\u4e2d\u56fd\u5efa\u8bbe\u94f6\u884c\u7f51\u7ad9\&quot;, \&quot;http__www.ccb.com_cn_home_indexv3.html\&quot;, \&quot;test25\&quot;], [26, \&quot;\u9996\u9875-\u4e2d\u56fd\u5149\u5927\u94f6\u884c\&quot;, \&quot;http__www.cebbank.com_\&quot;, \&quot;test26\&quot;], [27, \&quot;\u9996\u9875 - \u5e7f\u53d1\u94f6\u884c\&quot;, \&quot;http__www.cgbchina.com.cn_\&quot;, \&quot;test27\&quot;], [28, \&quot;\u5174\u4e1a\u94f6\u884c\u6b22\u8fce\u60a8\&quot;, \&quot;http__www.cib.com.cn_cn_index.html\&quot;, \&quot;test28\&quot;], [29, \&quot;\u4e2d\u4fe1\u7f51\u4e0a\u94f6\u884c_\u7406\u8d22\u4ea7\u54c1\u3001\u7533\u8bf7\u4fe1\u7528\u5361\u3001\u4e2a\u4eba\u8d37\u6b3e-\u4e2d\u4fe1\u94f6\u884c\u5b98\u7f51\&quot;, \&quot;http__www.citicbank.com_\&quot;, \&quot;test29\&quot;], [30, \&quot;\u4e2d\u56fd\u6c11\u751f\u94f6\u884c\&quot;, \&quot;http__www.cmbc.com.cn_\&quot;, \&quot;test30\&quot;], [31, \&quot;\u4e00\u7f51\u901a\u4e3b\u9875 -- \u62db\u5546\u94f6\u884c\u5b98\u65b9\u7f51\u7ad9\&quot;, \&quot;http__www.cmbchina.com_\&quot;, \&quot;test31\&quot;], [32, \&quot;\u6d59\u5546\u94f6\u884c\u80a1\u4efd\u6709\u9650\u516c\u53f8\&quot;, \&quot;http__www.czbank.com_cn_index.shtml\&quot;, \&quot;test32\&quot;], [33, \&quot;\u4e2d\u56fd\u653f\u5e9c\u7f51_\u4e2d\u592e\u4eba\u6c11\u653f\u5e9c\u95e8\u6237\u7f51\u7ad9\&quot;, \&quot;http__www.gov.cn_\&quot;, \&quot;test33\&quot;], [34, \&quot;\u6b22\u8fce\u5149\u4e34\u4e1c\u4e9a\u94f6\u884c\uff08\u4e2d\u56fd\uff09\u6709\u9650\u516c\u53f8\&quot;, \&quot;http__www.hkbea.com.cn_PersonalBusiness_\&quot;, \&quot;test34\&quot;], [35, \&quot;\u6c47\u4e30\u4e2d\u56fd-\u4fe1\u7528\u5361-\u7406\u8d22-\u8d37\u6b3e-\u4fdd\u9669-\u5b58\u6b3e\&quot;, \&quot;http__www.hsbc.com.cn_\&quot;, \&quot;test35\&quot;], [36, \&quot;\u534e\u590f\u94f6\u884c-\u9996\u9875\&quot;, \&quot;http__www.hxb.com.cn_index.shtml\&quot;, \&quot;test36\&quot;], [37, \&quot;\u4e2d\u56fd\u5de5\u5546\u94f6\u884c\u4e2d\u56fd\u7f51\u7ad9\&quot;, \&quot;http__www.icbc.com.cn_icbc_\&quot;, \&quot;test37\&quot;], [38, \&quot;\u4e2d\u534e\u4eba\u6c11\u5171\u548c\u56fd\u4ea4\u901a\u8fd0\u8f93\u90e8 - Ministry of Transport of the People&#x27;s Republic of China\&quot;, \&quot;http__www.mot.gov.cn_\&quot;, \&quot;test38\&quot;], [39, \&quot;title_failed_15947114304175750\&quot;, \&quot;http__www.nhc.gov.cn \&quot;, \&quot;test39\&quot;], [40, \&quot;\u4e2d\u56fd\u90ae\u653f\u50a8\u84c4\u94f6\u884c\&quot;, \&quot;http__www.psbc.com_cn_index.html\&quot;, \&quot;test40\&quot;]]&quot;
+}
+
+--------测试结束-----------
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">verification_code/test_verification_code_post.py::test_verification_code_post[http://www.damatu1.com]</td>
+          <td class="col-duration">0.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>
+ *** 初始化-模块 ***
+<br/> ------------------------------Captured stdout call------------------------------ <br/>http://www.damatu1.com
+202
+{
+    &quot;id&quot;: &quot;ff26526a-afe7-41c3-b94c-f396d6bf410c&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: null
+}
+
+202
+{
+    &quot;id&quot;: &quot;ff26526a-afe7-41c3-b94c-f396d6bf410c&quot;,
+    &quot;operate_status&quot;: &quot;PENDING&quot;,
+    &quot;data&quot;: null,
+    &quot;desc&quot;: &quot;&quot;
+}
+
+------------结束执行---------------
+<br/></div></td></tr></tbody></table></body></html>

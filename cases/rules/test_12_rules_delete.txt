@@ -1,0 +1,5 @@
+"cdn"
+"vpn"
+"mirror"
+"drug"
+"download"

@@ -1,0 +1,12 @@
+[INFO  - 2020-07-15T18:42:02.119Z] GhostDriver - Main - running on port 58120
+[INFO  - 2020-07-15T18:42:06.302Z] Session [e1d83d80-c6ca-11ea-a472-218541eb441f] - page.settings - {"XSSAuditingEnabled":false,"javascriptCanCloseWindows":true,"javascriptCanOpenWindows":true,"javascriptEnabled":true,"loadImages":true,"localToRemoteUrlAccessEnabled":false,"userAgent":"Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/538.1 (KHTML, like Gecko) PhantomJS/2.1.1 Safari/538.1","webSecurityEnabled":true}
+[INFO  - 2020-07-15T18:42:06.302Z] Session [e1d83d80-c6ca-11ea-a472-218541eb441f] - page.customHeaders:  - {}
+[INFO  - 2020-07-15T18:42:06.303Z] Session [e1d83d80-c6ca-11ea-a472-218541eb441f] - Session.negotiatedCapabilities - {"browserName":"phantomjs","version":"2.1.1","driverName":"ghostdriver","driverVersion":"1.2.0","platform":"windows-10-32bit","javascriptEnabled":true,"takesScreenshot":true,"handlesAlerts":false,"databaseEnabled":false,"locationContextEnabled":false,"applicationCacheEnabled":false,"browserConnectionEnabled":false,"cssSelectorsEnabled":true,"webStorageEnabled":false,"rotatable":false,"acceptSslCerts":false,"nativeEvents":true,"proxy":{"proxyType":"direct"}}
+[INFO  - 2020-07-15T18:42:06.303Z] SessionManagerReqHand - _postNewSessionCommand - New Session Created: e1d83d80-c6ca-11ea-a472-218541eb441f
+[ERROR - 2020-07-15T18:42:06.748Z] Session [e1d83d80-c6ca-11ea-a472-218541eb441f] - page.onError - msg: TypeError: undefined is not an object (evaluating 'cd_json[n].url')
+
+  phantomjs://platform/console++.js:263 in error
+[ERROR - 2020-07-15T18:42:06.749Z] Session [e1d83d80-c6ca-11ea-a472-218541eb441f] - page.onError - stack:
+  global code (https://language.chinadaily.com.cn/:334)
+
+  phantomjs://platform/console++.js:263 in error
